@@ -1,21 +1,27 @@
 /*
   # Serge CLAUS
   # GPL V3
-  # Version 1.0
-  # 02/11/2018 / 24/06/2019
+  # Version 2.0
+  # 02/11/2018 / 24/07/2019
 */
 
 #include <Wire.h>
 
-#define DHTPIN 12    // Pin sur lequel est branché le DHT
-#define WIRE 2      // 1-wire (T° miroir) /!\ D3 ne fonctionne pas (T° erronée)
-#define CHAUF 11     // Chauffage (MOSFET)
-#define LED 9       // LED indicateur de chauffage (Pour l'instant pas utilisé.)
+#define WIRE 5      // 1-wire (T° miroir) /!\ D3 ne fonctionne pas (T° erronée)
+#define CHAUF1 9   // Chauffage miroir (MOSFET) / Lunette
+#define CHAUF2 10   // Chauffage chercheur 
+#define CHAUF3 11   // Chauffage Lunette guide / oculaire
+#define BOUT1 2    // Bouton défilement
+#define BOUT2 3    // Bouton validation
 
-// DHT22
-#include "DHT.h"          // Librairie des capteurs DHT
-#define DHTTYPE DHT22         // DHT 22  (AM2302)
-DHT dht(DHTPIN, DHTTYPE);
+// Ecran OLED
+#include <Adafruit_GFX.h> 
+#include <Adafruit_SSD1306.h>
+
+// BME-280
+#include <Adafruit_Sensor.h> 
+#include <Adafruit_BME280.h>
+Adafruit_BME280 bme;
 
 // 1wire
 #include <OneWire.h>
@@ -32,35 +38,26 @@ void setup() {
   Serial.println("Booting");
 
   //Wire.begin();
-  pinMode(CHAUF, OUTPUT);
-  pinMode(PARK, OUTPUT);
-  digitalWrite(PARK, LOW);
+  bme.begin(0x76);
+  pinMode(CHAUF1, OUTPUT);
+  pinMode(CHAUF2, OUTPUT);
+  pinMode(CHAUF3, OUTPUT);
 
   // 1wire
   sensors.begin();
   sensors.getAddress(therMir, 0);
   //sensors.setResolution(therMir, 9);
+
+  analogWrite(CHAUF2,100);
+  analogWrite(CHAUF3,100);
 }
 
-// Timers
-unsigned long prevTemp = 0;
-
-#define intervTemp 10000
-
 void loop() {
-  // Timers
-  unsigned long curMillis = millis();
-
-  if (curMillis - prevTemp >= intervTemp) {
-    // Toutes les 10 secondes
     // Mesure T° / humidité
-    float h = dht.readHumidity();
+    float h = bme.readHumidity();
     // Lecture de la température en Celcius
-    float t = dht.readTemperature();
+    float t = bme.readTemperature();
     Serial.print("T° ext: ");Serial.print(t);Serial.print(" H%: ");Serial.println(h);
-//    if (!isnan(h) && !isnan(t)) {
-      
-//    }
     // T° miroir
     sensors.requestTemperatures();
     float tmir = sensors.getTempC(therMir);
@@ -76,26 +73,22 @@ void loop() {
       // T° miroir <= point de rosée +1° ?
       if (tmir <= (ptRosee + 1.5)) {
         Serial.println(" ON CHAUFFE");
-        if (!digitalRead(CHAUF)) {
-          digitalWrite(CHAUF, HIGH);
+        if (!digitalRead(CHAUF1)) {
+          digitalWrite(CHAUF1, HIGH);
         }
       }
       else {
-        if (digitalRead(CHAUF)) {
-          digitalWrite(CHAUF, LOW);
+        if (digitalRead(CHAUF1)) {
+          digitalWrite(CHAUF1, LOW);
         }
       }
     }
     else {
       Serial.println("Problème température miroir");
-      if (digitalRead(CHAUF)) {
-        digitalWrite(CHAUF, LOW);
+      if (digitalRead(CHAUF1)) {
+        digitalWrite(CHAUF1, LOW);
       }
     }
-    prevTemp = curMillis;
-
-  }
-
 }
 
 float CalculRosee(float t, float h) {
